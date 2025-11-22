@@ -70,3 +70,39 @@ class KaggleDogsCatsBuilder(tfds.core.GeneratorBasedBuilder):
                 },
             ),
         ]
+    
+    # Auxiliary methods
+    @staticmethod
+    def _sanitize_path(zip_file_name: str) -> str:
+        return os.path.normpath(zip_file_name)
+    
+    @staticmethod
+    def _extract_label(sanitized_name: str) -> str:
+        configuration = ExperimentConfig()
+        match = configuration.file_pattern.match(sanitized_name)
+        if match:
+            return match.group(1).lower()
+        else:
+            raise ValueError(f"File path {sanitized_name} does not match expected pattern.")
+    
+    @staticmethod
+    def _validate_jfif_header(zip_file_obj) -> bool:
+        return tf.compat.as_bytes("JFIF") in zip_file_obj.peek(10)
+    
+    @staticmethod
+    def _clean_corrupted_jpeg(raw_bytes: bytes) -> bytes | None:
+        try:
+            img_tensor = tf.image.decode_image(raw_bytes, channels = 3)
+            encoded_jpeg = tf.io.encode_jpeg(img_tensor)
+            return encoded_jpeg.numpy()
+        except tf.errors.InvalidArgumentError:
+            return None
+    
+    @staticmethod
+    def _wrap_in_memory_zip(file_name: str, jpeg_bytes: bytes):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as zip_writer:
+            zip_writer.writestr(file_name, jpeg_bytes)
+        zip_for_reading = zipfile.ZipFile(buffer)
+        return zip_for_reading.open(file_name)
+    
