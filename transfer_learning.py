@@ -41,3 +41,21 @@ class ExperimentConfig:
         # Class name mapping
         self.class_names = ['cat', 'dog']
 
+# -- Custom Transfer Learning Dataset Builder --
+class KaggleDogsCatsBuilder(tfds.core.GeneratorBasedBuilder):
+
+    VERSION = tfds.core.Version('4.0.2')
+
+    def _info(self) -> tfds.core.DatasetInfo:
+        return tfds.core.DatasetInfo(
+            builder = self,
+            description = "Cats vs Dogs dataset from Kaggle with transfer learning support.",
+            features = tfds.features.FeaturesDict({
+                "image": tfds.features.Image(),
+                "file_name": tfds.features.Text(),
+                "label": tfds.features.ClassLabel(names=['cat', 'dog']),
+            }),
+            supervised_keys = ("image_raw", "label"),
+            homepage="https://www.microsoft.com/en-us/download/details.aspx?id=54765",
+
+        )
