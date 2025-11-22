@@ -57,5 +57,16 @@ class KaggleDogsCatsBuilder(tfds.core.GeneratorBasedBuilder):
             }),
             supervised_keys = ("image_raw", "label"),
             homepage="https://www.microsoft.com/en-us/download/details.aspx?id=54765",
-
         )
+    
+    def _split_generators(self, dl_manager):
+        configuration = ExperimentConfig()
+        arquive_path = dl_manager.download_and_extract(configuration.dataset_url)
+        return [
+            tfds.core.SplitGenerator(
+                name = tfds.Split.TRAIN,
+                gen_kwargs = {
+                    "zip_iterator": dl_manager.iter_arquive(arquive_path)
+                },
+            ),
+        ]
