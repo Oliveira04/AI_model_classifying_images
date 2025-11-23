@@ -5,7 +5,7 @@ import os
 import io
 import re
 import zipfile
-from typing import Iterator, Tuplem, Dict, Any
+from typing import Iterator, Tuple, Dict, Any
 
 # -- Imports libraries models AI --
 import tensorflow as tf
@@ -106,3 +106,42 @@ class KaggleDogsCatsBuilder(tfds.core.GeneratorBasedBuilder):
         zip_for_reading = zipfile.ZipFile(buffer)
         return zip_for_reading.open(file_name)
     
+    # ---- Example generator ----
+    def _generate_examples(self, zip_iterator: Iterator[Tuple[str, Any]]) -> Iterator[Tuple[str, Dict[str, Any]]]:
+        #Iterates over the dataset archive and yields Transfer Learning Dataset examples
+        configuration = ExperimentConfig()
+        corrupted_count = 0
+
+        for zip_file_name, zip_file_obj in zip_iterator:
+            path_key = self._sanitize_path(zip_file_name)
+
+            label = self._extract_label(path_key)
+            if not label:
+                continue
+
+            if not self._validate_jfif_header(zip_file_obj):
+                skipped_corrupted_count += 1
+                continue
+
+            raw_image_bytes = zip_file_obj.read()
+            clean_jpeg_bytes = self._clean_corrupted_jpeg(raw_image_bytes)
+
+            if clean_jpeg_bytes is None:
+                corrupted_count += 1
+                continue
+
+            image_file_obj = self._wrap_in_memory_zip(file_name= path_key, jpeg_bytes= clean_jpeg_bytes,)
+            record = {
+                "image_raw": image_file_obj,
+                "file_name": path_key,
+                "label": label,
+            }
+
+            yield path_key, record
+
+        if corrupted_count != configuration.expected_corrupted_count:
+            raise ValueError(
+                f"Expected {configuration.expected_corrupted_count} corrupted images, "
+                f"but found {corrupted_count}."
+            )
+        logging.warning(f"d corrupted images werw skipped.", corrupted_count)
