@@ -235,3 +235,35 @@ class KaggleDogsCatsBuilder(tfdataset.core.GeneratorBasedBuilder):
 
                     return self.model.predict(images_batch)
                 
+                # -- Visualization Utilities -- 
+                class PredictionVisualizer:
+                    # Utility statics for visualizing predictions model
+
+                    img = image_tensor.numpy()
+                    img = (img + 1.0) * 127.5
+                    img = tf.clip(0, 255).astype("uint8")
+
+                @classmethod
+                def show_predictions(
+                    cls,
+                    model_wrapper: TransferLearningClassifer,
+                    dataset: tf.data.Dataset,
+                    num_batches: int,
+                    class_names: list[str],
+                ) -> None: 
+                    # Iterates in batches for dataset and visualizes predictions
+                    for batch in dataset.take(num_batches):
+                        images_batch, _ = batch
+
+                        predictions = model_wrapper.predict(images_batch)
+                        predicted_labels = (predictions > 0.5).astype(int).flatten()
+
+                        for index in range(len(images_batch)):
+                            plt.figure()
+                            img_to_show = cls._reverse_normalization(images_batchs[index])
+                            plt.imshow(img_to_show)
+                            plt.title(f"Predicted: {class_names[predicted_labels[index]]}")
+                            plt.axis("off")
+                            plt.show()
+
+                            
