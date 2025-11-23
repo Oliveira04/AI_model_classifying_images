@@ -193,4 +193,45 @@ class KaggleDogsCatsBuilder(tfdataset.core.GeneratorBasedBuilder):
                     raise RuntimeError("You must call .prepare() before accedding the dataset.")
                 return self._train_dataset
             
-            
+            #-- Model Wrapper Class --
+            class TransferLearningClassifier:
+                # Encapsulates the model Keras based in MobileNetV2
+                def __init__(self, config: ExperimentConfig):
+                    self.config = config
+                    self.model = self._build_model()
+                
+                def _build_model(self) -> tf.keras.Model:
+                    # Constructs the model MobileNetV2 in classificated binary
+
+                    base_model = tf.keras.applications.MobileNetV2(
+                        input_shape = (self.config.img_size, self.config.img_size, 3),
+                        include_top = False,
+                        weights = "imagenet",
+                    )
+                    base_model.trainable = self.config.base_model_trainable
+                    model = tf.keras.Sequential([
+                        base_model,
+                        tf.keras.layers.GlobalAveragePooling2D(),
+                        tf.keras.layers.Dense(1, activation = "sigmoid"),
+
+                    ])
+
+                    optimizer = tf.keras.optimizers.Adam(learning_rate = self.config.learning_rate)
+                    model.compile(
+                        optimizer = optimizer,
+                        loss = "binary_crossentropy",
+                        metrics = ["accuracy"],
+                    )
+                    return model
+                
+                def train(self, train_dataset: tf.data.Dataset, epochs: int | None = None):
+                    # Trains the model 
+                    if epochs is None:
+                        epochs = self.config.epochs
+                    history = self.model.fit(train_dataset, epochs = epochs)
+                    return history
+
+                def predict(self, images_batch: tf.Tensor):
+
+                    return self.model.predict(images_batch)
+                
