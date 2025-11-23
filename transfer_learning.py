@@ -9,7 +9,7 @@ from typing import Iterator, Tuple, Dict, Any
 
 # -- Imports libraries models AI --
 import tensorflow as tf
-import tensorflow_datasets as tfds
+import tensorflow_datasets as tfdataset
 from absl import logging
 import matplotlib.pyplot as plt
 
@@ -42,18 +42,18 @@ class ExperimentConfig:
         self.class_names = ['cat', 'dog']
 
 # -- Custom Transfer Learning Dataset Builder --
-class KaggleDogsCatsBuilder(tfds.core.GeneratorBasedBuilder):
+class KaggleDogsCatsBuilder(tfdataset.core.GeneratorBasedBuilder):
 
-    VERSION = tfds.core.Version('4.0.2')
+    VERSION = tfdataset.core.Version('4.0.2')
 
-    def _info(self) -> tfds.core.DatasetInfo:
-        return tfds.core.DatasetInfo(
+    def _info(self) -> tfdataset.core.DatasetInfo:
+        return tfdataset.core.DatasetInfo(
             builder = self,
             description = "Cats vs Dogs dataset from Kaggle with transfer learning support.",
-            features = tfds.features.FeaturesDict({
-                "image": tfds.features.Image(),
-                "file_name": tfds.features.Text(),
-                "label": tfds.features.ClassLabel(names=['cat', 'dog']),
+            features = tfdataset.features.FeaturesDict({
+                "image": tfdataset.features.Image(),
+                "file_name": tfdataset.features.Text(),
+                "label": tfdataset.features.ClassLabel(names=['cat', 'dog']),
             }),
             supervised_keys = ("image_raw", "label"),
             homepage="https://www.microsoft.com/en-us/download/details.aspx?id=54765",
@@ -63,15 +63,15 @@ class KaggleDogsCatsBuilder(tfds.core.GeneratorBasedBuilder):
         configuration = ExperimentConfig()
         arquive_path = dl_manager.download_and_extract(configuration.dataset_url)
         return [
-            tfds.core.SplitGenerator(
-                name = tfds.Split.TRAIN,
+            tfdataset.core.SplitGenerator(
+                name = tfdataset.Split.TRAIN,
                 gen_kwargs = {
                     "zip_iterator": dl_manager.iter_arquive(arquive_path)
                 },
             ),
         ]
     
-    # Auxiliary methods
+    # Auxiliary methodataset
     @staticmethod
     def _sanitize_path(zip_file_name: str) -> str:
         return os.path.normpath(zip_file_name)
@@ -106,9 +106,9 @@ class KaggleDogsCatsBuilder(tfds.core.GeneratorBasedBuilder):
         zip_for_reading = zipfile.ZipFile(buffer)
         return zip_for_reading.open(file_name)
     
-    # ---- Example generator ----
+    # -- Example generator --
     def _generate_examples(self, zip_iterator: Iterator[Tuple[str, Any]]) -> Iterator[Tuple[str, Dict[str, Any]]]:
-        #Iterates over the dataset archive and yields Transfer Learning Dataset examples
+        #Iterates over the dataset archive and yieldataset Transfer Learning Dataset examples
         configuration = ExperimentConfig()
         corrupted_count = 0
 
@@ -145,3 +145,52 @@ class KaggleDogsCatsBuilder(tfds.core.GeneratorBasedBuilder):
                 f"but found {corrupted_count}."
             )
         logging.warning(f"d corrupted images werw skipped.", corrupted_count)
+
+        # -- Data pipeline Class --
+        class ImagePipelineManager:
+            # Manages dataset preparation and tf.data pipeline construction
+            def __init__(self, config: ExperimentConfig):
+                self.config = config
+                self.builder = KaggleDogsCatsBuilder()
+                self._train_dataset: tf.data.Dataset | None = None
+
+            @staticmethod
+            def _normalize_and_resize(example: Dict[str, Any], target_size: int):
+                #Added target_size as an argument
+                image = example["image_raw"]
+                label = example["label"]
+
+                # Resize image
+                image = tf.image.resize(image, (target_size, target_size))
+                
+                # Normalize pixel values to [-1, 1]
+                image = tf.cast(image, tf.float32)
+                image = (image / 127.5) - 1.0
+
+                return image, label 
+            
+            def prepare(self):
+                # Prepares the dataset for training 
+
+                self.builder.download_and_prepare()
+                dataset = self.builder.as_dataset(split = "train", shuffle_files = True)
+
+                # Function pass lambda argument size images
+                dataset = dataset.map(
+                    lambda x: self._normalize_and_resize(x, self.config.img_size),
+                    num_parallel_calls = tf.data.AUTOTUNE,
+                )
+                # Order slightly altered to break the similarity
+                dataset = dataset.shuffle(2000)
+                dataset = dataset.batch(self.config.batch_size)
+                dataset = dataset.prefetch(tf.data.AUTOTUNE)
+
+                self._train_dataset = dataset 
+            
+            @property
+            def train_dataset(self) -> tf.data.Dataset:
+                if self._train_dataset is None:
+                    raise RuntimeError("You must call .prepare() before accedding the dataset.")
+                return self._train_dataset
+            
+            
