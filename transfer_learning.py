@@ -266,4 +266,30 @@ class KaggleDogsCatsBuilder(tfdataset.core.GeneratorBasedBuilder):
                             plt.axis("off")
                             plt.show()
 
+                    # -- Traning Orchestration --
+                    class ExperimentRunner:
+                        # Orchestrates the entire experiment flow
+
+                        def __init__(self, config: ExperimentConfig):
+                            self.config = config
+                            self.data_pipeline = ImagePipelineManager(config)
+                            self.model_wrapper = TransferLearningClassifier(config)
+
+                        def run(self) -> None:
+                            # Executes the experiment steps
+
+                            # Prepare date in training
+                            self.data_pipeline.prepare()
+                            train_dataset = self.data_pipeline.train_dataset
+
+                            # Train the model
+                            self.model_wrapper.train(train_dataset, epochs = self.config.epochs)
+
+                            # Visualize predictions
+                            PredictionVisualizer.show_predictions(
+                                model_wrapper = self.model_wrapper,
+                                dataset = train_dataset,
+                                num_batches = 5,
+                                class_names = self.config.class_names,
+                            )
                             
